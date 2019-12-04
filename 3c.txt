@@ -1,0 +1,74 @@
+--ej 3.c
+
+CREATE VIEW vSocioTitular AS
+	SELECT Titular.dni, numero, tipo, estado, nombre, sexo, fechanac, individual_familiar, estatura, fechainsc FROM Socio
+	INNER JOIN Titular ON Titular.dni = Socio.dni
+
+
+--funcion que devuelve la cantidad de adherentes de un titular en una cuota
+CREATE OR REPLACE FUNCTION fx_cantidad_adherentes_cuota(p_dni integer, p_mesanio date)
+RETURNS INTEGER AS
+$$
+	DECLARE
+		adherentes integer;
+	BEGIN
+		SELECT INTO adherentes count(*) FROM CuotaDetalle CD WHERE CD.dnititular = p_dni AND CD.mesanio = p_mesanio;
+		RETURN adherentes;
+	END;
+$$
+LANGUAGE plpgsql;
+
+
+CREATE VIEW vCuotaCompleta AS
+	SELECT Cu.dni, Cu.mesanio, Cu.importe, Cu.fechavencimiento, CP.fechapago, CP.montorecargo, 
+			fx_cantidad_adherentes_cuota(Cu.dni,Cu.mesanio) AS adherentes 
+	FROM Cuota Cu
+	INNER JOIN CuotaPago CP ON CP.dni = Cu.dni AND CP.mesanio = Cu.mesanio
+	INNER JOIN CuotaDetalle CD ON CD.dnititular = Cu.dni AND CD.mesanio = Cu.mesanio
+	--group by Cu.dni, Cu.mesanio, CP.fechapago, CP.montorecargo
+
+
+CREATE VIEW vCuotaBeca AS 
+	SELECT B.dni, B.porcentaje FROM Beca B
+	INNER JOIN Cuota Cu ON Cu.dni = B.dni
+	WHERE Cu.mesanio BETWEEN B.fechadesde AND B.fechahasta
+
+
+CREATE OR REPLACE FUNCTION fx_devuelve_porcentaje_beca_cuota(p_dni integer, p_mesanio date)
+RETURNS NUMERIC AS
+$$
+	DECLARE
+		porcentaje_beca numeric = 0;
+	BEGIN
+		SELECT INTO porcentaje_beca Beca.porcentaje FROM Beca 
+			WHERE Beca.dni = p_dni 
+				AND p_mesanio BETWEEN Beca.fechadesde AND Beca.fechahasta;
+		
+		IF porcentaje_beca IS NULL THEN
+			porcentaje_beca = 0;
+		END IF;
+		
+		RETURN porcentaje_beca;
+	END;
+$$
+LANGUAGE plpgsql;
+
+
+CREATE VIEW vHistorialCuotas AS 
+	SELECT ST.dni, ST.nombre, ST.sexo, ST.fechanac, CC.adherentes as cantAdherentes, CC.mesanio, CC.importe, 
+		CC.fechavencimiento, CC.fechapago, CC.montorecargo,fx_convierte_importe_a_cadena(cast(CC.importe as numeric)) as Monto_Cuota, 
+		(CC.importe-(CC.importe*fx_devuelve_porcentaje_beca_cuota(ST.dni, CC.mesanio))) as Monto_Becado, 
+		CASE WHEN CC.fechapago IS NULL AND current_date <= CC.fechavencimiento THEN 'Activa' 
+			 WHEN CC.fechapago IS NULL AND current_date > CC.fechavencimiento THEN 'Vencida'
+			 ELSE 'Pagada'
+		END AS Estado_Cuota
+	FROM vSocioTitular ST
+	INNER JOIN vCuotaCompleta CC ON CC.dni = ST.dni
+
+--prueba de la vista
+select * from vHistorialCuotas;
+--OUTPUT dni 39840668, nombre Perez Juan Franco, sexo M, fechanac 1985-04-18, cantadherentes 1, mesanio 2019-05-23, importe 200.00, 
+	 fechapago null, montorecargo 0.00, monto_cuota doscientos, monto_becado 200.00, estado_cuota Activa
+
+
+	

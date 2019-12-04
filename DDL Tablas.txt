@@ -1,0 +1,122 @@
+create table Socio(
+	DNI integer not null,
+	numero integer unique,
+	tipo varchar(20),
+	estado varchar(50),
+	nombre varchar(75),
+	sexo char,
+	fechaNac date,
+	individual_familiar char,
+	estatura integer,
+	fechaInsc date,
+	primary key (DNI)
+)
+
+create table Beca(
+	DNI integer not null,
+	fechaDesde date not null,
+	fechaHasta date,
+	porcentaje float,
+	primary key (DNI,fechaDesde),
+	foreign key (DNI) references Socio(DNI) on delete cascade on update cascade
+)
+
+create table Deporte(
+	codigo integer not null,
+	nombre varchar(50),
+	nombreFedereacion varchar(75),
+	primary key (codigo)
+)
+
+create table Socio_Deporte(
+	DNI integer not null,
+	codigo integer not null,
+	esFederado boolean,
+	nroInscripcion integer,
+	primary key (DNI,codigo),
+	foreign key (DNI) references Socio(DNI) on delete cascade on update cascade,
+	foreign key (codigo) references Deporte(codigo) on delete cascade on update cascade
+)
+
+create table Adherente(
+	DNI integer not null,
+	gradoParentesco varchar (30),
+	DNITitular integer not null,
+	primary key (DNI),
+	foreign key (DNITitular) references Socio(DNI) on delete cascade on update cascade
+)
+
+create table Titular(
+	DNI integer not null,
+	primary key(DNI),
+	foreign key (DNI) references Socio(DNI) on delete cascade on update cascade
+)
+
+create table Periodo(
+	DNI integer not null,
+	fechaDesde date not null,
+	fechaHasta date,
+	motivoBaja varchar(100),
+	primary key (DNI,fechaDesde),
+	foreign key (DNI) references Socio(DNI) on update cascade on delete cascade
+)
+
+create table Direccion(
+	provincia varchar(75) not null,
+	localidad varchar(75) not null,
+	calle varchar(75) not null,
+	numero integer not null,
+	departamento varchar(75) not null,
+	piso integer not null,
+	codigoPostal integer not null,
+	DNI integer,
+	primary key(provincia,localidad,calle,numero,departamento,piso,codigoPostal),
+	foreign key (DNI) references Titular(DNI) on delete cascade on update cascade
+)
+
+create table Cuota(
+	DNI integer not null,
+	mesAnio date not null,
+	importe money,
+	fechaVencimiento date,
+	primary key (DNI,mesAnio),
+	foreign key (DNI) references Titular(DNI) on delete cascade on update cascade
+)
+
+create table CuotaPago(
+	DNI integer not null,
+	mesAnio date not null,
+	fechaPago date,
+	montoRecargo money,
+	primary key (DNI,mesAnio),
+	foreign key (DNI, mesAnio) references Cuota(DNI,mesAnio) on delete cascade on update cascade
+)
+
+create table CuotaDetalle(
+	DNITitular integer not null,
+	mesAnio date not null,
+	DNIAdherente integer not null,
+	monto money,
+	primary key(DNITitular,mesAnio,DNIAdherente),
+	foreign key (DNITitular,mesAnio) references Cuota(DNI,mesAnio) on delete cascade on update cascade,
+	foreign key (DNIAdherente) references Adherente(DNI) on delete cascade on update cascade
+)
+
+create table Empleado(
+	cuil varchar(20) not null,
+	apellido varchar(50),
+	nombres varchar(50),
+	fechaIngreso date,
+	cargo varchar(100),
+	cuilSuperior varchar(20),
+	primary key (cuil),
+	foreign key (cuilSuperior) references Empleado(cuil) on delete cascade on update cascade
+)
+
+create table Subordinado(
+	cuilSuperior varchar(20),
+	cuilSubordinado varchar(20),
+	primary key (cuilSuperior,cuilSubordinado),
+	foreign key (cuilSuperior) references Empleado(cuil) on delete cascade on update cascade,
+	foreign key (cuilSubordinado) references Empleado(cuil) on delete cascade on update cascade
+)

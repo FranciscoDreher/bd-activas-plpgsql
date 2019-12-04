@@ -1,0 +1,97 @@
+create trigger tr_nro_socio
+before insert or update of numero on Socio
+for each row
+execute procedure fx_nro_socio();
+
+create or replace function fx_nro_socio()
+returns trigger as
+$$
+declare
+	mayor integer;
+begin
+	select into mayor numero from Socio order by numero desc limit 1;
+	
+	if not exists (select * from Socio) then --si es el primer registro
+		new.numero = 900;
+		raise notice 'al ser el primer socio ingresado, se le asignó el numero de socio 900';
+	elsif new.numero is not null then --si le ingresó un numero
+		if exists (select * from Socio where numero = new.numero) then --si existe uno igual
+			raise exception 'ya existe un socio con dicho numero';
+		elsif new.numero < mayor then --si es menor al último ingresado, o sea, el mayor
+			raise exception 'el numero no puede ser menor a % (último ingresado)', mayor;
+		end if;
+	else
+		new.numero = (select numero from Socio order by numero desc limit 1)+1; --si es igual a null le asigno el siguiente del mayor
+	end if;
+	return NEW;
+end
+$$
+language plpgsql;
+
+
+
+----------------------------------------------------------------
+
+Caso de prueba 1:
+
+delete from Socio;
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(40992775,1,'deportivo','activo','Juan Perez','M','2000/05/05','F',1.75,'2019/02/04');
+
+Salida:
+
+NOTICE:  al ser el primer socio ingresado, se le asignó el numero de socio 900
+INSERT 0 1
+
+
+
+
+Caso de prueba 2:
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(30999777,1000,'deportivo','activo','Anibal Perez','M','1987/08/22','F',1.80,'2019/02/04');
+
+Salia:
+
+ERROR:  ya existe un socio con dicho numero
+CONTEXT:  función PL/pgSQL fx_nro_socio() en la línea 12 en RAISE
+SQL state: P0001
+
+
+
+
+Caso de prueba 3:
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(30500500,1000,'deportivo','activo','Pedro Martinez','M','1989/12/22','I',1.70,'2019/12/04');
+
+Salida:
+
+INSERT 0 1
+
+
+
+
+Caso de prueba 4:
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(35000100,950,'deportivo','activo','Juan Rodrigez','M','1990/02/06','I',1.70,'2009/05/11');
+
+Salida:
+
+ERROR:  el numero no puede ser menor a 1000 (último ingresado)
+CONTEXT:  función PL/pgSQL fx_nro_socio() en la línea 14 en RAISE
+SQL state: P0001
+
+
+
+
+Caso de prueba 5:
+
+insert into Socio(DNI,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(45250250,'deportivo','activo','Martin Martinez','M','1999/06/06','I',1.70,'2015/11/11');
+select * from Socio where DNI = 45250250;
+
+Salida:
+
+DNI: 45250250, numero: 1001, ...

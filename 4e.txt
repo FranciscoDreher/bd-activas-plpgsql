@@ -1,0 +1,51 @@
+create table DireccionVersiones(
+	provincia varchar(75),
+	localidad varchar(75),
+	calle varchar(75),
+	numero integer,
+	departamento varchar(75),
+	piso integer,
+	codigoPostal integer,
+	DNI integer,
+	fechaActualizacion timestamp default current_timestamp,
+	usuario varchar(75) default user
+);
+
+create trigger tr_direccion_versiones
+after update on Direccion
+for each row
+execute procedure fx_direccion_versiones();
+
+create or replace function fx_direccion_versiones()
+returns trigger as
+$$
+begin
+	insert into DireccionVersiones(provincia,localidad,calle,numero,departamento,piso,codigoPostal,DNI)
+		values (old.provincia,old.localidad,old.calle,old.numero,old.departamento,old.piso,old.codigoPostal,old.DNI);
+	return null;
+end
+$$
+language plpgsql;
+
+
+----------------------------------------------------
+
+Caso de prueba 1:
+
+delete from Socio;
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(40992775,900,'deportivo','activo','Juan Perez','M','2000/05/05','I',1.75,'2019/02/04');
+insert into Titular(DNI) values(40992775);
+insert into Direccion(provincia,localidad,calle,numero,departamento,piso,codigoPostal,DNI)
+	values('Entre Rios','Paraná','San Martín',1100,'4',3,3111,40992775);
+
+update Direccion
+set calle = 'Belgrano'
+where DNI = 40992775;
+
+select * from DireccionVersiones;
+
+
+Salida:
+
+provincia:"Entre Rios", localidad:"Paraná", calle:"San Martín", numero:1100, departamento:"4", piso:3, codigoPostal:3111, DNI:40992775, fechaActualización:"2019-05-18 11:43:30.318811", usuario:"postgres"

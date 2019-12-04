@@ -1,0 +1,53 @@
+--ej 4g
+create materialized view vMatHistorialCuotas as
+	select * from vHistorialCuotas;
+
+create trigger tr_vMatHistorialCuotas
+instead of insert or update or delete on vHistorialCuotas
+for each row
+execute procedure fx_vMatHistorialCuotas();
+
+create or replace function fx_vMatHistorialCuotas()
+returns trigger as
+$$
+begin
+	REFRESH MATERIALIZED VIEW vmathistorialcuotas;
+	return null;
+end
+$$
+language plpgsql;
+
+
+
+---------------------------------------------
+Caso de prueba 1:
+
+delete from Socio;
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(10,900,'deportivo','activo','Juan Perez','M','2000/05/05','F',1.75,'2019/02/04');
+insert into Titular(DNI) values(10);
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(20,901,'deportivo','activo','Martin Perez','M','1990/10/22','F',1.80,'2019/02/04');
+insert into Adherente(DNI,gradoParentesco,DNITitular) values(20,'primo',10);
+
+insert into Cuota(DNI,mesAnio,importe,fechaVencimiento)
+	values(10,'2018/05/01',500,'2018/06/01');
+insert into CuotaDetalle(DNITitular,mesAnio,DNIAdherente,monto)
+	values(10,'2018/05/01',20,250);
+insert into CuotaPago(DNI,mesAnio,fechaPago,montoRecargo)
+	values(10,'2018/05/01','2018/05/12',0);
+
+insert into Beca(DNI,fechaDesde,fechaHasta,porcentaje)
+	values(10,'2018/01/01','2019/01/01',5);
+
+insert into vHistorialCuotas(DNI) values(10);
+--(para que se actualice vMatHistorailCuotas)
+
+select * from vMatHistorialCuotas;
+
+
+Salida:
+DNI	nombre		sexo	fechaNac	cantAdherentes		mesAnio		Importe		fechaNacimiento		fechaPago	montoRecargo	monto_cuota	monto_becado	estado_cuota
+10	"Juan Perez"	"M"	"2000-05-05"	1			"2018-05-01"	"$ 500,00"	"2018-06-01"		"2018-05-12"	"$ 0,00"	"quinientos"	"-$ 2.000,00"	"Pagada"

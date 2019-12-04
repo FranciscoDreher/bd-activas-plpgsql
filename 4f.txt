@@ -1,0 +1,59 @@
+create trigger tr_socio_periodo
+after insert or update on Socio
+for each row
+execute procedure fx_socio_periodo();
+
+create or replace function fx_socio_periodo()
+returns trigger as
+$$
+begin
+	if tg_op = 'INSERT' then
+			insert into Periodo(DNI,fechaDesde,fechaHasta,motivoBaja)
+				values(new.DNI,current_date,null,null);
+	elsif old.estado <> new.estado then
+		if old.estado = 'activo' and new.estado <> 'activo' then --cuando se camiba de activo a otro estado
+			update Periodo
+			set fechaHasta = current_date, motivoBaja = new.estado
+			where DNI = old.DNI and fechaDesde = (select fechaDesde from Periodo
+												  where DNI = old.DNI
+												 order by fechaDesde desc
+												 limit 1);
+		elsif old.estado <> 'activo' and new.estado = 'activo' then --cuando se cambia de otro estado a activo
+			insert into Periodo(DNI,fechaDesde,fechaHasta,motivoBaja)
+				values(old.DNI,current_date,null,null);
+		end if;
+	end if;
+	return null;
+end
+$$
+language plpgsql;
+
+
+------------------------------------------------------
+
+Caso de prueba 1:
+
+delete from Socio;
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(40992775,900,'deportivo','activo','Juan Perez','M','2000/05/05','I',1.75,'2010/01/04');
+
+update Socio
+set estado = 'Baja por no tener trabajo'
+where DNI = 40992775;
+
+update Socio
+set estado = 'activo'
+where DNI = 40992775;
+
+select * from Periodo;
+
+
+Resultado:
+
+DNI		fechaDesde	fechaHasta	motivoBaja
+40992775	"2019-05-18"	"2019-05-18"	"Baja por no tener trabajo"
+40992775	"2019-05-22"	[null]		[null]
+
+Aclaración: Al querer hacer el segundo update nos va a dar error porque se van a duplicar las claves
+DNI y fechaDesde, entonces para probarlo hay que cambiar en la función el current_date por otra
+fecha (en este caso puse '2019/05/22')

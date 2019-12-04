@@ -1,0 +1,74 @@
+create trigger tr_titular_disjunto
+before insert or update on Titular
+for each row
+execute procedure fx_titular_disjunto();
+
+create or replace function fx_titular_disjunto()
+returns trigger as
+$$
+begin
+	if exists(select DNI from Adherente where DNI = new.DNI) then
+		raise exception 'ya existe un Socio Adherente con dicho DNI';
+	end if;
+	return NEW;
+end
+$$
+language plpgsql;
+
+
+
+create trigger tr_adherente_disjunto
+before insert or update on Adherente
+for each row
+execute procedure fx_adherente_disjunto();
+
+create or replace function fx_adherente_disjunto()
+returns trigger as
+$$
+begin
+	if exists(select DNI from Titular where DNI = new.DNI) then
+		raise exception 'ya existe un Socio Titular con dicho DNI';
+	end if;
+	return NEW;
+end
+$$
+language plpgsql;
+
+
+
+
+----------------------------------------------------------------
+
+
+Caso de Prueba 1:
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(40992775,900,'deportivo','activo','Juan Perez','M','2000/05/05','F',1.75,'2019/02/04');
+insert into Titular(DNI) values(40992775);
+insert into Adherente(DNI,gradoParentesco,DNITitular) values(40992775,'primo',40992775);
+
+
+Salida:
+
+ERROR:  ya existe un Socio Titular con dicho DNI
+CONTEXT:  función PL/pgSQL fx_adherente_disjunto() en la línea 4 en RAISE
+SQL state: P0001
+
+
+
+
+Caso de Prueba 2:
+
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(40992775,900,'deportivo','activo','Juan Perez','M','2000/05/05','F',1.75,'2019/02/04');
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(30999777,1000,'deportivo','activo','Anibal Perez','M','1987/08/22','F',1.80,'2019/02/04');
+insert into Titular(DNI) values(40992775);
+insert into Adherente(DNI,gradoParentesco,DNITitular) values(30999777,'primo',40992775);
+insert into Titular(DNI) values(30999777);
+
+Salida:
+
+ERROR:  ya existe un Socio Adherente con dicho DNI
+CONTEXT:  función PL/pgSQL fx_titular_disjunto() en la línea 4 en RAISE
+SQL state: P0001

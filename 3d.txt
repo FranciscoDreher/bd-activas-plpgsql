@@ -1,0 +1,41 @@
+--ej 3.d
+CREATE OR REPLACE FUNCTION fx_genera_pago_cuota(p_dni integer, p_mesanio date)
+RETURNS VARCHAR(150) AS
+$$
+	DECLARE
+		cuota_completa record;
+		informacion varchar(150);
+		estado integer = -1;
+	BEGIN
+		SELECT INTO cuota_completa * FROM vHistorialCuotas vHC
+			WHERE vHC.dni = p_dni AND vHC.mesanio = p_mesanio;
+			
+		CASE WHEN cuota_completa.estado_cuota = 'Pagada' THEN
+				RAISE EXCEPTION 'Cuota ya pagada';
+			 WHEN cuota_completa.estado_cuota = 'Activa' THEN
+			 	estado = 0;
+				informacion = estado || '@' || extract(month from p_mesanio) || ' Cuota pagada el ' || current_date;
+				UPDATE CuotaPago
+					SET fechapago = current_date
+					WHERE dni = p_dni AND mesanio = p_mesanio;
+			 WHEN cuota_completa.estado_cuota = 'Vencida' THEN
+			 	informacion = estado || '@' || extract(month from p_mesanio) || ' Cuota vencida y pagada el ' || current_date;
+				UPDATE CuotaPago
+					SET fechapago = current_date,
+						montorecargo = (cuota_completa.importe * 0.01) * (current_date - cuota_completa.fechavencimiento)
+					WHERE dni = p_dni AND mesanio = p_mesanio;
+			ELSE 
+				informacion = 'Error WTF'; 
+		END CASE;
+		
+		RETURN informacion;
+	END;	
+$$
+LANGUAGE plpgsql;
+
+--Pago de la cuota
+select fx_genera_pago_cuota(39840668,'2019-05-23'); --OUTPUT: 0@5 Cuota pagada el 2019-05-23
+
+--repetimos el pago
+select fx_genera_pago_cuota(39840668,'2019-05-23'); --OUTPUT: ERROR: Cuota ya pagada
+						    --        ^^Exception^^

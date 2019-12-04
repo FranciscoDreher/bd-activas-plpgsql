@@ -1,0 +1,30 @@
+--ej 4d R4
+
+CREATE TRIGGER tr_modifica_nombre_socio_desde_vsocios
+INSTEAD OF UPDATE ON vsocios
+FOR EACH ROW
+EXECUTE PROCEDURE fx_modifica_nombre_socio_desde_vsocios();
+
+CREATE OR REPLACE FUNCTION fx_modifica_nombre_socio_desde_vsocios()
+RETURNS TRIGGER AS
+$$
+	DECLARE
+		
+	BEGIN
+		UPDATE socio
+			SET nombre = new.nombre
+			WHERE numero = new.numero;
+	
+	RETURN NULL;
+	END;
+$$
+LANGUAGE plpgsql;
+
+--Caso de prueba
+insert into Socio(DNI,numero,tipo,estado,nombre,sexo,fechaNac,individual_familiar,estatura,fechaInsc)
+	values(10,1,'deportivo','activo','Juan Perez','M','2000/05/05','F',1.75,'2019/02/04');
+insert into Titular(DNI) values(10);
+
+update vsocios 
+	set nombre = 'Alberto Perez'
+	where numero = 900;

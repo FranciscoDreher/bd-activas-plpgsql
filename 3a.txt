@@ -1,0 +1,69 @@
+--ej 3.a
+create or replace function fx_genera_cuotas(p_mesAnio date)
+returns varchar(150) as 
+$$
+	declare
+		estado integer;
+		informacion varchar(150);
+		iterador1 record;
+		iterador2 record;
+		cantSociosGrupo integer;
+		contador integer = 0;
+	begin
+		--si no coincide el mes ingresado al actual genera la info de error
+		if extract(month from p_mesAnio) <> extract(month from current_date)
+			then estado = -1;
+				 informacion = estado || '@' || extract(month from p_mesAnio) || ' Error en el mes a facturar';
+		else --si el mes es igual al ingresado
+			estado = 0;-- estado de exito
+			-- foreach para insertar registros de Cuota
+			for iterador1 in
+				select * from vsocios inner join Socio on Socio.numero = vsocios.numero
+			loop
+			
+				if iterador1.titular_adherente = 'T' then
+					select into cantSociosGrupo count(*) from vsocios where numero = iterador1.numero;--cantidad de socios en un mismo grupo
+					--inserto la fila en Cuota
+					insert into Cuota (dni,mesanio,importe,fechavencimiento) values (iterador1.dni,current_date, cantSociosGrupo*200,current_date+60);
+
+					--sumo al contador
+					contador = contador +1;
+					
+					--inserto el registro de pago de la cuota en CuotaPago
+					insert into CuotaPago (dni,mesanio,montorecargo,fechapago) values (iterador1.dni,current_date,0,null);
+					
+					--contador de filas insertadas
+					contador = contador + 1;
+					
+					--foreach para insertar filas en CuotaDetalle
+					for iterador2 in
+						
+						select * from adherente Ad
+							where Ad.dnititular = iterador1.dni
+					loop
+						--inserto cada detalle
+						insert into cuotadetalle (dnititular,mesanio,dniadherente,monto) values (iterador1.dni,current_date,iterador2.dni,200);
+						contador = contador + 1;
+						
+					end loop;
+				end if;
+				
+			end loop;
+			
+			--generamos la info de exito con filas insertadas
+			informacion = estado || '@' || extract(month from p_mesAnio) || ' Facturado en ' || current_date || '. ' || contador || ' filas insertadas.';
+		
+		end if;
+		
+		--devolvemos la info (error o exito)
+		return informacion;
+		
+	end;
+$$
+language plpgsql;
+
+--prueba de error de mes
+select fx_genera_cuotas('2019-07-12'); --devuelve el estado de error -1@7 Error en el mes a facturar
+
+--teniendo un titular con dni 39840668 y saldodeudor en 0, y ademas un adherente de éste con dni 39840667 y grado de parentesco 'Hermano' 
+select fx_genera_cuota(current_date); --genera un registro en cuota, uno en cuotadetalle y uno en cuotapago; con estado 0@5 Facturado en 2019-05-23. 3 filas insertadas.

@@ -1,0 +1,87 @@
+create view vDatosSubordinado as
+	select S.cuilsubordinado, E.apellido, S.cuilsuperior from subordinado S
+	inner join empleado E on E.cuil = S.cuilsubordinado
+	
+--cola para iterar
+create table colaEmpleado(
+	orden serial not null,
+	cuil varchar(20),
+	apellido varchar(50),
+	cuilsuperior varchar(20)
+);
+
+--cola para retornar
+create table colaEmpleadoRetornada(
+	orden serial not null,
+	cuil varchar(20),
+	apellido varchar(50),
+	cuilsuperior varchar(20)
+);
+
+
+--funcion subarbol organigrama
+create or replace function fx_subarbol_organigrama(pcuil varchar(20))
+returns table(cuil varchar(20), apellido varchar(50), cuilsuperior varchar(20)) as
+$$
+declare
+	iter record; --variable para iterar
+begin
+	
+	--borro los datos anteriores
+	delete from colaEmpleado;
+	delete from colaEmpleadoRetornada;
+	
+	--inserto la raiz del subarbol
+	insert into colaEmpleado(cuil, apellido, cuilsuperior) select E.cuil, E.apellido, E.cuilsuperior from empleado E where E.cuil = pcuil;
+	
+	--le asigno a iter el empleado raiz
+	select into iter E.cuil, E.apellido, E.cuilsuperior from Empleado E where E.cuil = pcuil limit 1;
+	
+	--itero con en colaEmpleado
+	loop
+		--inserto el empleado en la cola a retornar
+		insert into colaEmpleadoRetornada (cuil, apellido, cuilsuperior) values (iter.cuil, iter.apellido, iter.cuilsuperior);
+		
+		--agrego los subordinados directos del actual empleado a la cola
+		insert into colaEmpleado (cuil,apellido,cuilsuperior) select DS.cuilsubordinado, DS.apellido, DS.cuilsuperior from vDatosSubordinado DS where DS.cuilsuperior = iter.cuil;
+		
+		--borro de la cola al empleado que estaba analizando
+		delete from colaEmpleado cEmp where cEmp.cuil = iter.cuil;
+		
+		--le asigno el siguiente empleado de la cola a la variable. la tabla esta ordenada por el campo orden que es tipo SERIAL
+		select into iter cEmp.cuil, cEmp.apellido, cEmp.cuilsuperior from colaEmpleado cEmp limit 1;
+		
+		--salgo del loop cuando la cola esté vacia
+		exit when (select count(*) from colaEmpleado) = 0;
+	end loop;
+	
+	--retorno la tabla con el "subarbol"
+	return query select cER.cuil, cER.apellido, cER.cuilsuperior from colaEmpleadoRetornada cER;
+
+	
+end;
+$$
+language plpgsql;
+
+
+--Casos de prueba
+insert into empleado(cuil,apellido,nombres,fechaingreso,cargo,cuilsuperior)
+	values (1,'Perez','Juan','2016-02-12','Presidente',null),
+	       (2,'Pereira','Martin','2018-02-12','Administrador',1),
+	       (3,'Gomez','Diego','2013-02-12','Tesorero',1),
+	       (4,'Rubio','Joaquin','2014-02-12','Empleado',2),
+	       (5,'Gonzalez','Andres','2013-04-12','Empleado',2),
+	       (6,'Tevez','Carlos','2011-02-12','Empleado',3),
+	       (7,'Messi','Lionel','2012-07-12','Empleado',3);
+
+insert into subordinado(cuilsuperior,cuilsubordinado) 
+	values (1,2),
+	       (1,3),
+	       (2,4),
+	       (2,5),
+	       (3,6),
+	       (3,7);
+
+select fx_subarbol_organigrama('1'); --devuelve el arbol desde el gerente
+select fx_subarbol_organigrama('2'); --devuelve el arbol desde el administrador
+select fx_subarbol_organigrama('4'); --devuelve solo a 'Rubio'    

@@ -1,0 +1,49 @@
+--ej 4b Regla R2
+
+/*ALTER TABLE titular 
+ADD COLUMN saldodeudor money;*/
+
+CREATE TRIGGER tr_suma_saldo_deudor
+AFTER INSERT ON Cuota
+FOR EACH ROW
+EXECUTE PROCEDURE fx_suma_saldo_deudor();
+
+CREATE OR REPLACE FUNCTION fx_suma_saldo_deudor() 
+RETURNS TRIGGER AS
+$$
+	DECLARE
+	
+	BEGIN
+		UPDATE titular
+			SET saldodeudor = saldodeudor + new.importe
+			WHERE dni = new.dni;
+		
+		RETURN NULL;
+	END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_resta_saldo_deudor
+AFTER UPDATE ON CuotaPago
+FOR EACH ROW
+EXECUTE PROCEDURE fx_resta_saldo_deudor();
+
+CREATE OR REPLACE FUNCTION fx_resta_saldo_deudor() 
+RETURNS TRIGGER AS
+$$
+	DECLARE
+		reg_cuota record;
+	BEGIN
+		SELECT INTO reg_cuota Cu.importe FROM Cuota Cu WHERE Cu.dni = new.dni AND Cu.mesanio = new.mesanio;
+		
+		UPDATE titular
+			SET saldodeudor = saldodeudor - reg_cuota.importe
+			WHERE dni = new.dni;
+		
+		RETURN NULL;
+	END;
+$$
+LANGUAGE plpgsql;
+
+
+--Los casos de prueba se pueden ver en los de 3a (tr_suma_saldo_deudor) y 3d (tr_resta_saldo_deudor) haciendo select * from titular en cada caso

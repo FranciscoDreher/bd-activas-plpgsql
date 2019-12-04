@@ -1,0 +1,11 @@
+create view vsocios as 
+	select Socio.numero, Socio.nombre, 'T' as titular_adherente, null as titular_nombre
+	from Titular
+	inner join Socio on (Titular.DNI = Socio.DNI)
+	union
+	select Socio.numero, Socio.nombre, 'A' as titular_adherente, Socio_Titular.nombre as titular_nombre
+	from Adherente
+	inner join Socio on (Adherente.DNI = Socio.DNI)
+	inner join (select Socio.DNI, Socio.nombre from Titular
+			   inner join Socio on (Titular.DNI = Socio.DNI)
+			   ) as Socio_Titular on (Adherente.DNITitular = Socio_Titular.DNI)
